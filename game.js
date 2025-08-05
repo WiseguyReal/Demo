@@ -7,10 +7,11 @@ let gameRunning = false;
 let lastTime = 0;
 
 // Physics constants
-const GRAVITY = 0.3;
-const FRICTION = 0.98;
-const BOUNCE_DAMPING = 0.7;
+const GRAVITY = 0.2;
+const FRICTION = 0.995; // Reduced friction to maintain movement
+const BOUNCE_DAMPING = 0.8; // Less energy loss on bounces
 const COLLISION_THRESHOLD = 50; // Distance for combat collision
+const MIN_VELOCITY = 0.5; // Minimum velocity to prevent balls from stopping
 
 // Particle effects array
 let particles = [];
@@ -45,22 +46,41 @@ class Ball {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
         
+        // Ensure minimum velocity to keep balls moving
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (currentSpeed < MIN_VELOCITY && currentSpeed > 0.01) {
+            const scale = MIN_VELOCITY / currentSpeed;
+            this.vx *= scale;
+            this.vy *= scale;
+        }
+        
+        // Add small random forces occasionally to maintain chaos
+        if (Math.random() < 0.005) { // 0.5% chance per frame
+            this.vx += (Math.random() - 0.5) * 0.5;
+            this.vy += (Math.random() - 0.5) * 0.5;
+        }
+        
         // Boundary collisions
         if (this.x - this.radius < 0) {
             this.x = this.radius;
             this.vx = -this.vx * BOUNCE_DAMPING;
+            // Add small random component to prevent predictable bouncing
+            this.vy += (Math.random() - 0.5) * 0.5;
         }
         if (this.x + this.radius > canvas.width) {
             this.x = canvas.width - this.radius;
             this.vx = -this.vx * BOUNCE_DAMPING;
+            this.vy += (Math.random() - 0.5) * 0.5;
         }
         if (this.y - this.radius < 0) {
             this.y = this.radius;
             this.vy = -this.vy * BOUNCE_DAMPING;
+            this.vx += (Math.random() - 0.5) * 0.5;
         }
         if (this.y + this.radius > canvas.height) {
             this.y = canvas.height - this.radius;
             this.vy = -this.vy * BOUNCE_DAMPING;
+            this.vx += (Math.random() - 0.5) * 0.5;
         }
         
         // Update trail
@@ -343,9 +363,9 @@ function initGame() {
     katana.ball = katanaBall;
     hammer.ball = hammerBall;
     
-    // Give initial random velocities
-    katanaBall.applyForce((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
-    hammerBall.applyForce((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+    // Give initial stronger random velocities to ensure continuous movement
+    katanaBall.applyForce((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+    hammerBall.applyForce((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
     
     updateUI();
 }
@@ -387,12 +407,16 @@ function checkCollisions() {
             }
         }
         
-        // Apply collision physics
+        // Apply collision physics with stronger forces to maintain movement
         const angle = Math.atan2(dy, dx);
-        const force = 5;
+        const force = 8; // Increased force to keep balls bouncing
         
         katanaBall.applyForce(Math.cos(angle) * force, Math.sin(angle) * force);
         hammerBall.applyForce(-Math.cos(angle) * force, -Math.sin(angle) * force);
+        
+        // Add some randomness to prevent predictable patterns
+        katanaBall.applyForce((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+        hammerBall.applyForce((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
         
         updateUI();
     }
