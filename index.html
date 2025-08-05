@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Katana vs Hammer - Ball Physics Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5e6d3, #e8d5c4);
+            font-family: 'Arial Black', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .title {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .katana-title {
+            color: #00d4ff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .vs-text {
+            color: #333;
+            margin: 0 20px;
+        }
+
+        .hammer-title {
+            color: #ff8c00;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .game-container {
+            position: relative;
+            border: 4px solid #333;
+            border-radius: 10px;
+            background: #f0f0f0;
+            margin-bottom: 20px;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #f0f0f0;
+            border-radius: 6px;
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            margin-top: 10px;
+        }
+
+        .weapon-stats {
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 3px solid;
+            min-width: 200px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .katana-stats {
+            border-color: #00d4ff;
+        }
+
+        .hammer-stats {
+            border-color: #ff8c00;
+        }
+
+        .weapon-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .stat-line {
+            margin: 5px 0;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .health-bar {
+            width: 100%;
+            height: 20px;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 5px 0;
+            border: 2px solid #333;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s ease;
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .control-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 0 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .reset-btn {
+            background: #f44336;
+        }
+
+        .reset-btn:hover {
+            background: #da190b;
+        }
+
+        .damage-text {
+            position: absolute;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff0000;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .bleed-indicator {
+            position: absolute;
+            font-size: 14px;
+            color: #8B0000;
+            font-weight: bold;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="title">
+        <span class="katana-title">⚔️ Katana</span>
+        <span class="vs-text">VS</span>
+        <span class="hammer-title">🔨 Hammer</span>
+    </div>
+
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <div class="stats-container">
+        <div class="weapon-stats katana-stats">
+            <div class="weapon-name" style="color: #00d4ff;">⚔️ Katana</div>
+            <div class="health-bar">
+                <div class="health-fill" id="katanaHealth" style="width: 100%;"></div>
+            </div>
+            <div class="stat-line">HP: <span id="katanaHP">100</span>/100</div>
+            <div class="stat-line">Damage: <span id="katanaDamage">4</span></div>
+            <div class="stat-line">Speed: <span id="katanaSpeed">3.5</span></div>
+            <div class="stat-line" style="color: #8B0000;">Bleed Stacks: <span id="katanaBleed">0</span></div>
+            <div style="font-size: 12px; margin-top: 5px; color: #666;">
+                Bleed: +1 dmg/sec for 3s per hit
+            </div>
+        </div>
+
+        <div class="weapon-stats hammer-stats">
+            <div class="weapon-name" style="color: #ff8c00;">🔨 Hammer</div>
+            <div class="health-bar">
+                <div class="health-fill" id="hammerHealth" style="width: 100%;"></div>
+            </div>
+            <div class="stat-line">HP: <span id="hammerHP">100</span>/100</div>
+            <div class="stat-line">Damage: <span id="hammerDamage">2.0</span></div>
+            <div class="stat-line">Speed: <span id="hammerSpeed">2.0</span></div>
+            <div class="stat-line" style="color: #ff4444;">Rage Stacks: <span id="hammerRage">0</span></div>
+            <div style="font-size: 12px; margin-top: 5px; color: #666;">
+                Momentum: +0.5 dmg & speed per hit
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn" onclick="startBattle()">Start Battle</button>
+        <button class="control-btn" onclick="pauseBattle()">Pause</button>
+        <button class="control-btn reset-btn" onclick="resetBattle()">Reset</button>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
