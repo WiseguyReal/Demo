@@ -7,11 +7,12 @@ let gameRunning = false;
 let lastTime = 0;
 
 // Physics constants
-const GRAVITY = 0.2;
-const FRICTION = 0.995; // Reduced friction to maintain movement
-const BOUNCE_DAMPING = 0.8; // Less energy loss on bounces
+const GRAVITY = 0.15; // Very light gravity to keep balls bouncing high
+const FRICTION = 0.999; // Minimal friction to maintain energy
+const BOUNCE_DAMPING = 0.95; // High bounce retention for energetic bounces
 const COLLISION_THRESHOLD = 50; // Distance for combat collision
-const MIN_VELOCITY = 0.5; // Minimum velocity to prevent balls from stopping
+const MIN_VELOCITY = 1.0; // Higher minimum velocity to ensure active bouncing
+const GROUND_BOUNCE_BOOST = 1.2; // Extra boost when hitting ground
 
 // Particle effects array
 let particles = [];
@@ -46,7 +47,7 @@ class Ball {
         this.vx *= FRICTION;
         this.vy *= FRICTION;
         
-        // Ensure minimum velocity to keep balls moving
+        // Ensure minimum velocity to keep balls moving energetically
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed < MIN_VELOCITY && currentSpeed > 0.01) {
             const scale = MIN_VELOCITY / currentSpeed;
@@ -54,33 +55,44 @@ class Ball {
             this.vy *= scale;
         }
         
-        // Add small random forces occasionally to maintain chaos
-        if (Math.random() < 0.005) { // 0.5% chance per frame
-            this.vx += (Math.random() - 0.5) * 0.5;
-            this.vy += (Math.random() - 0.5) * 0.5;
+        // Add energetic random forces more frequently to maintain chaos
+        if (Math.random() < 0.01) { // 1% chance per frame for more action
+            this.vx += (Math.random() - 0.5) * 1.5;
+            this.vy += (Math.random() - 0.5) * 1.5;
         }
         
-        // Boundary collisions
+        // Prevent balls from getting too slow vertically (anti-ground stick)
+        if (Math.abs(this.vy) < 0.3 && this.y > canvas.height - this.radius - 10) {
+            this.vy = (this.vy < 0 ? -1 : 1) * MIN_VELOCITY;
+        }
+        
+        // Boundary collisions with high-energy bounces
         if (this.x - this.radius < 0) {
             this.x = this.radius;
             this.vx = -this.vx * BOUNCE_DAMPING;
-            // Add small random component to prevent predictable bouncing
-            this.vy += (Math.random() - 0.5) * 0.5;
+            // Add energetic random component
+            this.vy += (Math.random() - 0.5) * 2;
         }
         if (this.x + this.radius > canvas.width) {
             this.x = canvas.width - this.radius;
             this.vx = -this.vx * BOUNCE_DAMPING;
-            this.vy += (Math.random() - 0.5) * 0.5;
+            this.vy += (Math.random() - 0.5) * 2;
         }
         if (this.y - this.radius < 0) {
             this.y = this.radius;
             this.vy = -this.vy * BOUNCE_DAMPING;
-            this.vx += (Math.random() - 0.5) * 0.5;
+            this.vx += (Math.random() - 0.5) * 2;
         }
+        // Ground collision with extra bounce boost
         if (this.y + this.radius > canvas.height) {
             this.y = canvas.height - this.radius;
-            this.vy = -this.vy * BOUNCE_DAMPING;
-            this.vx += (Math.random() - 0.5) * 0.5;
+            this.vy = -Math.abs(this.vy) * BOUNCE_DAMPING * GROUND_BOUNCE_BOOST; // Always bounce up with boost
+            this.vx += (Math.random() - 0.5) * 2;
+            
+            // Ensure minimum upward velocity to prevent ground sticking
+            if (this.vy > -MIN_VELOCITY) {
+                this.vy = -MIN_VELOCITY * 2; // Strong upward bounce
+            }
         }
         
         // Update trail
@@ -357,15 +369,16 @@ function initGame() {
     katana = new Katana();
     hammer = new Hammer();
     
-    katanaBall = new Ball(200, 300, 25, '#00d4ff', katana);
-    hammerBall = new Ball(600, 300, 25, '#ff8c00', hammer);
+    // Adjust starting positions for smaller arena
+    katanaBall = new Ball(150, 200, 25, '#00d4ff', katana);
+    hammerBall = new Ball(450, 200, 25, '#ff8c00', hammer);
     
     katana.ball = katanaBall;
     hammer.ball = hammerBall;
     
-    // Give initial stronger random velocities to ensure continuous movement
-    katanaBall.applyForce((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
-    hammerBall.applyForce((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+    // Give initial strong velocities with emphasis on vertical movement
+    katanaBall.applyForce((Math.random() - 0.5) * 10, -Math.random() * 8 - 5); // Upward bias
+    hammerBall.applyForce((Math.random() - 0.5) * 10, -Math.random() * 8 - 5); // Upward bias
     
     updateUI();
 }
