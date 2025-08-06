@@ -10,9 +10,11 @@ let lastTime = 0;
 const GRAVITY = 0.15; // Very light gravity to keep balls bouncing high
 const FRICTION = 0.999; // Minimal friction to maintain energy
 const BOUNCE_DAMPING = 0.95; // High bounce retention for energetic bounces
-const COLLISION_THRESHOLD = 50; // Distance for combat collision
+const COLLISION_THRESHOLD = 50; // Distance for combat collision (ball to ball)
+const WEAPON_COLLISION_THRESHOLD = 30; // Distance for weapon collision
 const MIN_VELOCITY = 1.0; // Higher minimum velocity to ensure active bouncing
 const GROUND_BOUNCE_BOOST = 1.2; // Extra boost when hitting ground
+const WEAPON_LENGTH = 40; // Length of weapon extending from ball
 
 // Particle effects array
 let particles = [];
@@ -113,20 +115,37 @@ class Ball {
         }
         ctx.stroke();
         
+        // Calculate weapon position based on movement direction
+        const angle = Math.atan2(this.vy, this.vx);
+        const weaponTipX = this.x + Math.cos(angle) * WEAPON_LENGTH;
+        const weaponTipY = this.y + Math.sin(angle) * WEAPON_LENGTH;
+        
+        // Draw weapon
+        this.weapon.drawWeapon(ctx, this.x, this.y, weaponTipX, weaponTipY, angle);
+        
         // Draw ball
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
         
-        // Draw weapon icon
+        // Draw weapon icon on ball
         ctx.fillStyle = 'white';
-        ctx.font = '24px Arial';
+        ctx.font = '16px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(this.weapon.icon, this.x, this.y + 8);
+        ctx.fillText(this.weapon.icon, this.x, this.y + 5);
         
         // Draw status effects
         this.weapon.drawEffects(ctx, this.x, this.y - this.radius - 20);
+    }
+
+    getWeaponTip() {
+        const angle = Math.atan2(this.vy, this.vx);
+        return {
+            x: this.x + Math.cos(angle) * WEAPON_LENGTH,
+            y: this.y + Math.sin(angle) * WEAPON_LENGTH,
+            angle: angle
+        };
     }
 
     applyForce(fx, fy) {
@@ -161,6 +180,10 @@ class Weapon {
     }
 
     drawEffects(ctx, x, y) {
+        // Override in subclasses
+    }
+
+    drawWeapon(ctx, ballX, ballY, tipX, tipY, angle) {
         // Override in subclasses
     }
 
@@ -208,6 +231,33 @@ class Katana extends Weapon {
 
     getBleedDamage() {
         return this.bleedStacks.length; // 1 damage per stack per second
+    }
+
+    drawWeapon(ctx, ballX, ballY, tipX, tipY, angle) {
+        // Draw katana blade
+        ctx.strokeStyle = '#C0C0C0'; // Silver blade
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        
+        // Main blade
+        ctx.beginPath();
+        ctx.moveTo(ballX + Math.cos(angle) * 15, ballY + Math.sin(angle) * 15);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+        
+        // Katana edge highlight
+        ctx.strokeStyle = '#E8E8E8';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(ballX + Math.cos(angle) * 15, ballY + Math.sin(angle) * 15);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+        
+        // Handle/Guard
+        ctx.fillStyle = '#8B4513'; // Brown handle
+        ctx.beginPath();
+        ctx.arc(ballX + Math.cos(angle) * 10, ballY + Math.sin(angle) * 10, 3, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     drawEffects(ctx, x, y) {
@@ -271,6 +321,47 @@ class Hammer extends Weapon {
 
     getCurrentSpeed() {
         return this.baseSpeed + (this.rageStacks * 0.5);
+    }
+
+    drawWeapon(ctx, ballX, ballY, tipX, tipY, angle) {
+        // Draw hammer handle
+        ctx.strokeStyle = '#8B4513'; // Brown handle
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        
+        // Handle
+        const handleLength = WEAPON_LENGTH * 0.7;
+        const handleEndX = ballX + Math.cos(angle) * handleLength;
+        const handleEndY = ballY + Math.sin(angle) * handleLength;
+        
+        ctx.beginPath();
+        ctx.moveTo(ballX + Math.cos(angle) * 10, ballY + Math.sin(angle) * 10);
+        ctx.lineTo(handleEndX, handleEndY);
+        ctx.stroke();
+        
+        // Hammer head (perpendicular to handle)
+        const hammerSize = 15;
+        const perpAngle = angle + Math.PI / 2;
+        
+        ctx.fillStyle = '#696969'; // Dark gray hammer head
+        ctx.strokeStyle = '#2F2F2F';
+        ctx.lineWidth = 2;
+        
+        // Main hammer head rectangle
+        ctx.save();
+        ctx.translate(tipX, tipY);
+        ctx.rotate(perpAngle);
+        ctx.fillRect(-hammerSize, -hammerSize/3, hammerSize*2, hammerSize*2/3);
+        ctx.strokeRect(-hammerSize, -hammerSize/3, hammerSize*2, hammerSize*2/3);
+        ctx.restore();
+        
+        // Hammer head highlight
+        ctx.fillStyle = '#A9A9A9';
+        ctx.save();
+        ctx.translate(tipX, tipY);
+        ctx.rotate(perpAngle);
+        ctx.fillRect(-hammerSize, -hammerSize/3, hammerSize*2, 3);
+        ctx.restore();
     }
 
     drawEffects(ctx, x, y) {
@@ -385,48 +476,81 @@ function initGame() {
 
 // Collision detection and combat
 function checkCollisions() {
-    const dx = katanaBall.x - hammerBall.x;
-    const dy = katanaBall.y - hammerBall.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // Check weapon-to-weapon collision first
+    const katanaWeapon = katanaBall.getWeaponTip();
+    const hammerWeapon = hammerBall.getWeaponTip();
     
-    if (distance < COLLISION_THRESHOLD) {
-        // Combat occurs
-        const katanaSpeed = Math.sqrt(katanaBall.vx * katanaBall.vx + katanaBall.vy * katanaBall.vy);
-        const hammerSpeed = Math.sqrt(hammerBall.vx * hammerBall.vx + hammerBall.vy * hammerBall.vy);
+    // Check weapon tip to opposite ball collision
+    const katanaToHammerBall = Math.sqrt(
+        (katanaWeapon.x - hammerBall.x) ** 2 + (katanaWeapon.y - hammerBall.y) ** 2
+    );
+    const hammerToKatanaBall = Math.sqrt(
+        (hammerWeapon.x - katanaBall.x) ** 2 + (hammerWeapon.y - katanaBall.y) ** 2
+    );
+    
+    let combatOccurred = false;
+    
+    // Katana weapon hits Hammer ball
+    if (katanaToHammerBall < WEAPON_COLLISION_THRESHOLD) {
+        const damage = katana.attack(hammer);
+        const isDead = hammer.takeDamage(damage);
+        showDamageText(hammerBall.x, hammerBall.y, damage, '#ff0000');
+        createHitEffect(hammerWeapon.x, hammerWeapon.y, '#00d4ff');
+        createWeaponClash(katanaWeapon.x, katanaWeapon.y);
         
-        // Determine who attacks based on speed and randomness
-        const katanaAttackChance = (katanaSpeed + katana.getCurrentSpeed()) / 
-                                  (katanaSpeed + katana.getCurrentSpeed() + hammerSpeed + hammer.getCurrentSpeed());
-        
-        if (Math.random() < katanaAttackChance) {
-            // Katana attacks
-            const damage = katana.attack(hammer);
-            const isDead = hammer.takeDamage(damage);
-            showDamageText(hammerBall.x, hammerBall.y, damage, '#ff0000');
-            createHitEffect(hammerBall.x, hammerBall.y, '#00d4ff');
-            
-            if (isDead) {
-                endGame('Katana');
-            }
-        } else {
-            // Hammer attacks
-            const damage = hammer.attack(katana);
-            const isDead = katana.takeDamage(damage);
-            showDamageText(katanaBall.x, katanaBall.y, damage, '#ff0000');
-            createHitEffect(katanaBall.x, katanaBall.y, '#ff8c00');
-            
-            if (isDead) {
-                endGame('Hammer');
-            }
+        if (isDead) {
+            endGame('Katana');
+            return;
         }
+        combatOccurred = true;
+    }
+    
+    // Hammer weapon hits Katana ball
+    if (hammerToKatanaBall < WEAPON_COLLISION_THRESHOLD) {
+        const damage = hammer.attack(katana);
+        const isDead = katana.takeDamage(damage);
+        showDamageText(katanaBall.x, katanaBall.y, damage, '#ff0000');
+        createHitEffect(katanaWeapon.x, katanaWeapon.y, '#ff8c00');
+        createWeaponClash(hammerWeapon.x, hammerWeapon.y);
         
-        // Apply collision physics with stronger forces to maintain movement
-        const angle = Math.atan2(dy, dx);
-        const force = 8; // Increased force to keep balls bouncing
+        if (isDead) {
+            endGame('Hammer');
+            return;
+        }
+        combatOccurred = true;
+    }
+    
+    // Check weapon-to-weapon parry/clash
+    const weaponDistance = Math.sqrt(
+        (katanaWeapon.x - hammerWeapon.x) ** 2 + (katanaWeapon.y - hammerWeapon.y) ** 2
+    );
+    
+    if (weaponDistance < WEAPON_COLLISION_THRESHOLD / 2) {
+        // Weapon clash/parry - create sparks and deflect balls
+        createWeaponClash((katanaWeapon.x + hammerWeapon.x) / 2, (katanaWeapon.y + hammerWeapon.y) / 2);
         
-        katanaBall.applyForce(Math.cos(angle) * force, Math.sin(angle) * force);
-        hammerBall.applyForce(-Math.cos(angle) * force, -Math.sin(angle) * force);
+        // Deflect balls away from each other
+        const clashAngle = Math.atan2(hammerWeapon.y - katanaWeapon.y, hammerWeapon.x - katanaWeapon.x);
+        const deflectForce = 6;
         
+        katanaBall.applyForce(-Math.cos(clashAngle) * deflectForce, -Math.sin(clashAngle) * deflectForce);
+        hammerBall.applyForce(Math.cos(clashAngle) * deflectForce, Math.sin(clashAngle) * deflectForce);
+        
+        combatOccurred = true;
+    }
+    
+    // Ball-to-ball collision (backup/emergency collision)
+    const ballDistance = Math.sqrt((katanaBall.x - hammerBall.x) ** 2 + (katanaBall.y - hammerBall.y) ** 2);
+    if (ballDistance < katanaBall.radius + hammerBall.radius + 10) {
+        // Separate balls to prevent sticking
+        const angle = Math.atan2(hammerBall.y - katanaBall.y, hammerBall.x - katanaBall.x);
+        const force = 5;
+        
+        katanaBall.applyForce(-Math.cos(angle) * force, -Math.sin(angle) * force);
+        hammerBall.applyForce(Math.cos(angle) * force, Math.sin(angle) * force);
+    }
+    
+    if (combatOccurred) {
         // Add some randomness to prevent predictable patterns
         katanaBall.applyForce((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
         hammerBall.applyForce((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
@@ -472,6 +596,33 @@ function createRageEffect(x, y) {
             -Math.random() * 3,
             'rgba(255,68,68,1)',
             600
+        ));
+    }
+}
+
+function createWeaponClash(x, y) {
+    // Create sparks for weapon clash
+    for (let i = 0; i < 12; i++) {
+        const angle = (Math.PI * 2 * i) / 12;
+        const speed = Math.random() * 4 + 2;
+        particles.push(new Particle(
+            x, y,
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed,
+            'rgba(255,255,0,1)', // Yellow sparks
+            400
+        ));
+    }
+    
+    // Add some white hot sparks
+    for (let i = 0; i < 6; i++) {
+        particles.push(new Particle(
+            x + (Math.random() - 0.5) * 10,
+            y + (Math.random() - 0.5) * 10,
+            (Math.random() - 0.5) * 6,
+            (Math.random() - 0.5) * 6,
+            'rgba(255,255,255,1)',
+            300
         ));
     }
 }
